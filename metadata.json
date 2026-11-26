@@ -1,0 +1,6 @@
+{
+  "name": "Pawcation",
+  "description": "Pawcation mobile UI/UX prototype for pet care, boarding, vet consultation, schedules, and marketplace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
