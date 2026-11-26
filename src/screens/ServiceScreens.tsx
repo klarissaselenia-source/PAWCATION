@@ -1,15 +1,20 @@
 import React, {useState} from 'react';
 import {
   ArrowRight,
+  ArrowUpDown,
   Calendar,
   Car,
+  Check,
   Heart,
   Hotel,
   LogOut,
+  MapPin,
   MessageSquare,
   Mic,
   MicOff,
   Minus,
+  Navigation,
+  Pencil,
   Phone,
   Plus,
   Search,
@@ -34,11 +39,16 @@ import {
 } from '../data/pawcationData';
 import {
   calculateCartTotals,
+  calculatePetTaxiQuote,
+  createCustomPinLocation,
   filterProducts,
   formatRupiah,
+  TAXI_LOCATIONS,
   type CartEntry,
   type ProductItem,
   type RouteKey,
+  type TaxiFleetType,
+  type TaxiLocation,
 } from '../utils/pawcationLogic';
 
 export function HomeScreen({
@@ -1070,8 +1080,87 @@ export function PetTaxiScreen({
   onCheckout: (total: number, summary: string) => void;
   onNavigate: (r: RouteKey) => void;
 }) {
-  const [fleet, setFleet] = useState('PawCar Standard');
-  const fare = fleet === 'PawCar Standard' ? 45000 : 75000;
+  const [fleet, setFleet] = useState<TaxiFleetType>('PawCar Standard');
+  const [pickup, setPickup] = useState<TaxiLocation>(TAXI_LOCATIONS[0]);
+  const [dropoff, setDropoff] = useState<TaxiLocation>(TAXI_LOCATIONS[1]);
+  const [editingStop, setEditingStop] = useState<'pickup' | 'dropoff' | null>(
+    null,
+  );
+  const [customDraft, setCustomDraft] = useState('');
+  const [pinMode, setPinMode] = useState<'pickup' | 'dropoff'>('dropoff');
+
+  const quote = calculatePetTaxiQuote(pickup, dropoff, fleet);
+  const carQuote = calculatePetTaxiQuote(pickup, dropoff, 'PawCar Standard');
+  const vanQuote = calculatePetTaxiQuote(pickup, dropoff, 'PawVan AC + Crate');
+
+  const openEditor = (stop: 'pickup' | 'dropoff') => {
+    if (editingStop === stop) {
+      setEditingStop(null);
+      return;
+    }
+    setEditingStop(stop);
+    setPinMode(stop);
+    setCustomDraft(stop === 'pickup' ? pickup.address : dropoff.address);
+  };
+
+  const applyCustomAddress = () => {
+    const trimmed = customDraft.trim();
+    if (!trimmed) return;
+    if (editingStop === 'pickup') {
+      setPickup((prev) => ({
+        ...prev,
+        id: 'custom-pickup',
+        name: trimmed.split('•')[0].trim() || trimmed,
+        address: trimmed,
+        area: 'Alamat Custom',
+      }));
+    } else if (editingStop === 'dropoff') {
+      setDropoff((prev) => ({
+        ...prev,
+        id: 'custom-dropoff',
+        name: trimmed.split('•')[0].trim() || trimmed,
+        address: trimmed,
+        area: 'Alamat Custom',
+      }));
+    }
+    setEditingStop(null);
+  };
+
+  const handleSelectPreset = (
+    stop: 'pickup' | 'dropoff',
+    loc: TaxiLocation,
+  ) => {
+    if (stop === 'pickup') {
+      setPickup(loc);
+    } else {
+      setDropoff(loc);
+    }
+    setEditingStop(null);
+  };
+
+  const handleMapClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+    const nextPin = createCustomPinLocation(pinMode, xPct, yPct);
+    if (pinMode === 'pickup') {
+      setPickup(nextPin);
+    } else {
+      setDropoff(nextPin);
+    }
+  };
+
+  const handleSwapRoute = () => {
+    const prevPickup = pickup;
+    setPickup(dropoff);
+    setDropoff(prevPickup);
+  };
+
+  const midX = (pickup.xPct + dropoff.xPct) / 2;
+  const midY = (pickup.yPct + dropoff.yPct) / 2;
+  const curveCx = midX;
+  const curveCy = Math.max(10, Math.min(90, midY - 12));
 
   return (
     <div className="min-h-full bg-[#F4F8FC]">
@@ -1082,58 +1171,440 @@ export function PetTaxiScreen({
         </h1>
 
         <div className="rounded-[22px] border border-[#E6EEF5] bg-[#E6F4FD] p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="rounded-full bg-white px-3 py-1 text-[11.5px] font-bold text-[#0284C7]">
-              ETA 8 Menit
+              ETA {quote.etaMinutes} Menit
             </span>
-            <span className="text-[13px] font-extrabold text-[#0B4F6C]">
-              4.2 km
-            </span>
-          </div>
-          <div className="mt-3.5 space-y-2.5">
-            <div>
-              <p className="text-[11px] font-bold text-[#64748B]">Jemput</p>
-              <p className="text-[13.5px] font-extrabold">
-                Rumah Sele • Jl. Kemang Raya No. 18
-              </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSwapRoute}
+                aria-label="Tukar lokasi jemput dan tujuan"
+                className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#0284C7] hover:bg-[#F0F7FC] cursor-pointer"
+              >
+                <ArrowUpDown className="h-3 w-3" />
+                <span>Tukar</span>
+              </button>
+              <span className="text-[13px] font-extrabold text-[#0B4F6C]">
+                {quote.distanceKm.toFixed(1)} km
+              </span>
             </div>
-            <div>
-              <p className="text-[11px] font-bold text-[#64748B]">Tujuan</p>
-              <p className="text-[13.5px] font-extrabold">
-                Pawcation Salon &amp; Spa (Cabang Malang)
+          </div>
+
+          <div className="mt-3.5 space-y-2.5">
+            <div className="flex items-start justify-between gap-2 rounded-2xl bg-white/75 p-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold text-[#0284C7]">Jemput</p>
+                <p className="text-[13.5px] font-extrabold text-[#1E293B]">
+                  {pickup.address}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openEditor('pickup')}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#E6F4FD] px-2.5 py-1 text-[11px] font-bold text-[#0284C7] hover:bg-[#D5ECFA] cursor-pointer"
+              >
+                <Pencil className="h-3 w-3" />
+                <span>{editingStop === 'pickup' ? 'Tutup' : 'Ubah'}</span>
+              </button>
+            </div>
+
+            <div className="flex items-start justify-between gap-2 rounded-2xl bg-white/75 p-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold text-[#0D9488]">Tujuan</p>
+                <p className="text-[13.5px] font-extrabold text-[#1E293B]">
+                  {dropoff.address}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openEditor('dropoff')}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#E6F7F4] px-2.5 py-1 text-[11px] font-bold text-[#0D9488] hover:bg-[#D1F2EB] cursor-pointer"
+              >
+                <Pencil className="h-3 w-3" />
+                <span>{editingStop === 'dropoff' ? 'Tutup' : 'Ubah'}</span>
+              </button>
+            </div>
+          </div>
+
+          {editingStop && (
+            <div className="mt-3 rounded-2xl border border-[#BAE6FD] bg-white p-3">
+              <p className="text-[12px] font-extrabold text-[#1E293B]">
+                {editingStop === 'pickup'
+                  ? 'Ubah Lokasi Penjemputan'
+                  : 'Ubah Lokasi Tujuan'}
               </p>
+              <div className="mt-2 flex gap-1.5">
+                <input
+                  value={customDraft}
+                  onChange={(e) => setCustomDraft(e.target.value)}
+                  placeholder="Ketik alamat atau pilih titik cepat..."
+                  aria-label={
+                    editingStop === 'pickup'
+                      ? 'Alamat penjemputan'
+                      : 'Alamat tujuan'
+                  }
+                  className="h-9 flex-1 rounded-xl border border-[#E6EEF5] bg-[#F8FBFE] px-3 text-[12px] font-medium text-[#1E293B] outline-none focus:border-[#0FA5E9]"
+                />
+                <button
+                  type="button"
+                  onClick={applyCustomAddress}
+                  className="inline-flex h-9 items-center gap-1 rounded-xl bg-[#0FA5E9] px-3 text-[11.5px] font-bold text-white cursor-pointer"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Simpan</span>
+                </button>
+              </div>
+              <p className="mt-2.5 text-[11px] font-bold text-[#64748B]">
+                Lokasi Populer Pawcation:
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {TAXI_LOCATIONS.map((loc) => {
+                  const active =
+                    editingStop === 'pickup'
+                      ? pickup.id === loc.id
+                      : dropoff.id === loc.id;
+                  return (
+                    <button
+                      key={loc.id}
+                      type="button"
+                      onClick={() => handleSelectPreset(editingStop, loc)}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold cursor-pointer ${
+                        active
+                          ? 'bg-[#0FA5E9] text-white'
+                          : 'bg-[#F0F7FC] text-[#0284C7] hover:bg-[#E0F2FE]'
+                      }`}
+                    >
+                      {loc.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Interactive City Route Map */}
+          <div className="mt-3.5 rounded-2xl border border-[#BAE6FD] bg-white p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-[#0FA5E9]" />
+                <span className="truncate text-[12px] font-extrabold text-[#1E293B]">
+                  Peta Rute
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1 rounded-full bg-[#F3F5F8] p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPinMode('pickup')}
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold cursor-pointer ${
+                    pinMode === 'pickup'
+                      ? 'bg-[#0FA5E9] text-white'
+                      : 'text-[#64748B]'
+                  }`}
+                >
+                  Pin Jemput
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPinMode('dropoff')}
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold cursor-pointer ${
+                    pinMode === 'dropoff'
+                      ? 'bg-[#0D9488] text-white'
+                      : 'text-[#64748B]'
+                  }`}
+                >
+                  Pin Tujuan
+                </button>
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden rounded-xl border border-[#E2EEF8] bg-[#F4FAFF]">
+              <svg
+                viewBox="0 0 320 180"
+                role="img"
+                aria-label="Peta rute Pet Taxi untuk memilih titik jemput, tujuan, dan menganalisis tarif"
+                onClick={handleMapClick}
+                className="block h-44 w-full cursor-crosshair select-none"
+              >
+                {/* City blocks & parks */}
+                <rect x="0" y="0" width="320" height="180" fill="#F2F8FD" />
+                <rect x="20" y="18" width="64" height="36" rx="8" fill="#E6F2FA" />
+                <rect x="108" y="14" width="84" height="42" rx="8" fill="#DCFCE7" />
+                <rect x="216" y="18" width="84" height="46" rx="8" fill="#E6F2FA" />
+                <rect x="24" y="76" width="70" height="44" rx="8" fill="#DCFCE7" />
+                <rect x="116" y="74" width="86" height="48" rx="8" fill="#E6F2FA" />
+                <rect x="220" y="84" width="78" height="72" rx="8" fill="#E6F2FA" />
+                <rect x="24" y="134" width="168" height="32" rx="8" fill="#E6F2FA" />
+
+                {/* Subtle 1 km grid lines */}
+                {[40, 80, 120, 160, 200, 240, 280].map((gx) => (
+                  <line
+                    key={`gx-${gx}`}
+                    x1={gx}
+                    y1={0}
+                    x2={gx}
+                    y2={180}
+                    stroke="#DCEAF5"
+                    strokeWidth="1"
+                  />
+                ))}
+                {[30, 60, 90, 120, 150].map((gy) => (
+                  <line
+                    key={`gy-${gy}`}
+                    x1={0}
+                    y1={gy}
+                    x2={320}
+                    y2={gy}
+                    stroke="#DCEAF5"
+                    strokeWidth="1"
+                  />
+                ))}
+
+                {/* Main roads */}
+                <path
+                  d="M0 64 H320 M0 126 H320 M98 0 V180 M208 0 V180"
+                  stroke="#FFFFFF"
+                  strokeWidth="6"
+                  fill="none"
+                />
+                <path
+                  d="M0 64 H320 M0 126 H320 M98 0 V180 M208 0 V180"
+                  stroke="#CBD5E1"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                  fill="none"
+                />
+
+                {/* Preset landmark dots */}
+                {TAXI_LOCATIONS.map((loc) => {
+                  const lx = (loc.xPct / 100) * 320;
+                  const ly = (loc.yPct / 100) * 180;
+                  const isEndpoint =
+                    loc.id === pickup.id || loc.id === dropoff.id;
+                  if (isEndpoint) return null;
+                  return (
+                    <g
+                      key={loc.id}
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        if (pinMode === 'pickup') setPickup(loc);
+                        else setDropoff(loc);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <circle
+                        cx={lx}
+                        cy={ly}
+                        r="5"
+                        fill="#FFFFFF"
+                        stroke="#64748B"
+                        strokeWidth="2"
+                      />
+                      <text
+                        x={lx}
+                        y={ly - 8}
+                        textAnchor="middle"
+                        fontSize="7.5"
+                        fontWeight="700"
+                        fill="#475569"
+                        stroke="#FFFFFF"
+                        strokeWidth="2.5"
+                        paintOrder="stroke"
+                      >
+                        {loc.name}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* Route curve between pickup and dropoff */}
+                <path
+                  d={`M ${(pickup.xPct / 100) * 320} ${(pickup.yPct / 100) * 180} Q ${(curveCx / 100) * 320} ${(curveCy / 100) * 180} ${(dropoff.xPct / 100) * 320} ${(dropoff.yPct / 100) * 180}`}
+                  stroke="#0FA5E9"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeDasharray="7 5"
+                  fill="none"
+                />
+
+                {/* Pickup pin */}
+                <g
+                  transform={`translate(${(pickup.xPct / 100) * 320}, ${(pickup.yPct / 100) * 180})`}
+                >
+                  <circle r="13" fill="#0FA5E9" fillOpacity="0.2" />
+                  <circle
+                    r="7.5"
+                    fill="#0FA5E9"
+                    stroke="#FFFFFF"
+                    strokeWidth="2.5"
+                  />
+                  <rect
+                    x="-28"
+                    y="-25"
+                    width="56"
+                    height="15"
+                    rx="7.5"
+                    fill="#0284C7"
+                  />
+                  <text
+                    x="0"
+                    y="-15"
+                    textAnchor="middle"
+                    fontSize="8.5"
+                    fontWeight="800"
+                    fill="#FFFFFF"
+                  >
+                    Jemput
+                  </text>
+                </g>
+
+                {/* Dropoff pin */}
+                <g
+                  transform={`translate(${(dropoff.xPct / 100) * 320}, ${(dropoff.yPct / 100) * 180})`}
+                >
+                  <circle r="13" fill="#0D9488" fillOpacity="0.2" />
+                  <circle
+                    r="7.5"
+                    fill="#0D9488"
+                    stroke="#FFFFFF"
+                    strokeWidth="2.5"
+                  />
+                  <rect
+                    x="-28"
+                    y="-25"
+                    width="56"
+                    height="15"
+                    rx="7.5"
+                    fill="#0D9488"
+                  />
+                  <text
+                    x="0"
+                    y="-15"
+                    textAnchor="middle"
+                    fontSize="8.5"
+                    fontWeight="800"
+                    fill="#FFFFFF"
+                  >
+                    Tujuan
+                  </text>
+                </g>
+
+                {/* Distance + fare pill at route midpoint */}
+                <g
+                  transform={`translate(${(curveCx / 100) * 320}, ${((curveCy + midY) / 2 / 100) * 180})`}
+                >
+                  <rect
+                    x="-46"
+                    y="-10"
+                    width="92"
+                    height="20"
+                    rx="10"
+                    fill="#0B4F6C"
+                  />
+                  <text
+                    x="0"
+                    y="3.5"
+                    textAnchor="middle"
+                    fontSize="9"
+                    fontWeight="800"
+                    fill="#FFFFFF"
+                  >
+                    {quote.distanceKm.toFixed(1)} km • {formatRupiah(quote.totalFare)}
+                  </text>
+                </g>
+              </svg>
+
+              <div className="flex items-center justify-between border-t border-[#E6EEF5] bg-white px-2.5 py-1.5 text-[10.5px] font-semibold text-[#64748B]">
+                <span>
+                  Ketuk peta atau titik untuk ubah{' '}
+                  <strong
+                    className={
+                      pinMode === 'pickup'
+                        ? 'text-[#0284C7]'
+                        : 'text-[#0D9488]'
+                    }
+                  >
+                    {pinMode === 'pickup' ? 'Jemput' : 'Tujuan'}
+                  </strong>
+                </span>
+                <span className="font-bold text-[#0B4F6C]">Skala 8×6 km</span>
+              </div>
+            </div>
+
+            {/* Fare Analysis Breakdown */}
+            <div className="mt-2.5 rounded-xl bg-[#F0F7FC] p-3 text-[12px]">
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 font-extrabold text-[#1E293B]">
+                  <Navigation className="h-3.5 w-3.5 text-[#0FA5E9]" />
+                  Rincian Tarif
+                </span>
+                <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-extrabold text-[#0284C7]">
+                  {quote.distanceKm.toFixed(1)} km • {quote.etaMinutes} mnt
+                </span>
+              </div>
+              <div className="mt-2 space-y-1 text-[11.5px]">
+                <div className="flex justify-between text-[#64748B]">
+                  <span>Tarif Dasar ({fleet})</span>
+                  <span className="font-bold text-[#1E293B]">
+                    {formatRupiah(quote.baseFare)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-[#64748B]">
+                  <span>
+                    Biaya Jarak ({quote.distanceKm.toFixed(1)} km ×{' '}
+                    {formatRupiah(quote.perKmRate)})
+                  </span>
+                  <span className="font-bold text-[#1E293B]">
+                    {formatRupiah(quote.distanceFee)}
+                  </span>
+                </div>
+                <div className="my-1 h-px bg-[#DCEAF5]" />
+                <div className="flex justify-between text-[12.5px]">
+                  <span className="font-extrabold text-[#1E293B]">
+                    Estimasi Total
+                  </span>
+                  <span className="font-black text-[#0B4F6C]">
+                    {formatRupiah(quote.totalFare)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="space-y-2.5">
-          {['PawCar Standard', 'PawVan AC + Crate'].map((opt) => {
-            const active = fleet === opt;
-            const price = opt === 'PawCar Standard' ? 45000 : 75000;
-            return (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => setFleet(opt)}
-                className={`flex w-full items-center gap-3 rounded-[22px] border bg-white p-3.5 text-left cursor-pointer ${
-                  active ? 'border-2 border-[#0FA5E9]' : 'border-[#E6EEF5]'
-                }`}
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E6F4FD] text-[#0284C7]">
-                  <Car className="h-5 w-5" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-[14.5px] font-extrabold">{opt}</p>
-                  <p className="text-[12px] text-[#64748B]">
-                    Disinfeksi UV • Driver tersertifikasi
-                  </p>
-                </div>
-                <span className="text-[14.5px] font-black text-[#0284C7]">
-                  {formatRupiah(price)}
-                </span>
-              </button>
-            );
-          })}
+          {(['PawCar Standard', 'PawVan AC + Crate'] as TaxiFleetType[]).map(
+            (opt) => {
+              const active = fleet === opt;
+              const price =
+                opt === 'PawCar Standard'
+                  ? carQuote.totalFare
+                  : vanQuote.totalFare;
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setFleet(opt)}
+                  className={`flex w-full items-center gap-3 rounded-[22px] border bg-white p-3.5 text-left cursor-pointer ${
+                    active ? 'border-2 border-[#0FA5E9]' : 'border-[#E6EEF5]'
+                  }`}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E6F4FD] text-[#0284C7]">
+                    <Car className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[14.5px] font-extrabold">{opt}</p>
+                    <p className="text-[12px] text-[#64748B]">
+                      Disinfeksi UV • Driver tersertifikasi
+                    </p>
+                  </div>
+                  <span className="text-[14.5px] font-black text-[#0284C7]">
+                    {formatRupiah(price)}
+                  </span>
+                </button>
+              );
+            },
+          )}
         </div>
 
         <div className="flex items-center gap-3 rounded-[22px] border border-[#E6EEF5] bg-white p-3.5">
@@ -1157,10 +1628,15 @@ export function PetTaxiScreen({
 
         <button
           type="button"
-          onClick={() => onCheckout(fare, `Pet Taxi (${fleet}) • Antar Dodo`)}
+          onClick={() =>
+            onCheckout(
+              quote.totalFare,
+              `Pet Taxi (${fleet}) • ${pickup.name} → ${dropoff.name} (${quote.distanceKm.toFixed(1)} km)`,
+            )
+          }
           className="flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[#0FA5E9] text-[15px] font-bold text-white cursor-pointer"
         >
-          <span>Pesan Pet Taxi ({formatRupiah(fare)})</span>
+          <span>Pesan Pet Taxi ({formatRupiah(quote.totalFare)})</span>
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>

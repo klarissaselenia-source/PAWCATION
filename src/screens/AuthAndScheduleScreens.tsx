@@ -7,6 +7,7 @@ import {
   Calendar,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -44,6 +45,11 @@ import {
 import {
   calculatePawPointsEarned,
   formatRupiah,
+  formatSelectedDateSummary,
+  getDaysInMonth,
+  getSevenDayWindow,
+  ID_MONTHS,
+  shiftDateByDays,
   type AgendaItem,
   type RouteKey,
 } from '../utils/pawcationLogic';
@@ -591,16 +597,25 @@ export function ScheduleScreen({
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedMonth, setSelectedMonth] = useState(9); // Oktober
+  const [showPicker, setShowPicker] = useState(false);
 
-  const days = [
-    {name: 'Kam', num: 19, dot: ''},
-    {name: 'Jum', num: 20, dot: '#0D9488'},
-    {name: 'Sab', num: 21, dot: '#FFFFFF'},
-    {name: 'Min', num: 22, dot: ''},
-    {name: 'Sen', num: 23, dot: ''},
-    {name: 'Sel', num: 24, dot: '#0FA5E9'},
-    {name: 'Rab', num: 25, dot: ''},
-  ];
+  const days = getSevenDayWindow(selectedYear, selectedMonth, selectedDay);
+  const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
+  const isDefaultMonth = selectedYear === 2026 && selectedMonth === 9;
+
+  const handleShiftDay = (delta: number) => {
+    const next = shiftDateByDays(
+      selectedYear,
+      selectedMonth,
+      selectedDay,
+      delta,
+    );
+    setSelectedYear(next.year);
+    setSelectedMonth(next.monthIndex);
+    setSelectedDay(next.day);
+  };
 
   return (
     <div className="min-h-full bg-[#F4F8FC]">
@@ -650,39 +665,124 @@ export function ScheduleScreen({
 
         {/* Calendar Strip Card */}
         <div className="rounded-[22px] border border-[#E6EEF5] bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-[16px] font-extrabold text-[#1E293B]">
-              Oktober 2024
-            </span>
-            <span className="rounded-full bg-[#E6F4FD] px-2.5 py-0.5 text-[11px] font-bold text-[#0284C7]">
-              Bulan Ini
-            </span>
-            <div className="ml-auto flex items-center gap-1.5">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex min-w-0 items-center gap-1">
               <button
                 type="button"
-                aria-label="Sebelumnya"
-                onClick={() => setSelectedDay(20)}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F3F5F8] text-[#64748B] cursor-pointer"
+                onClick={() => setShowPicker((v) => !v)}
+                aria-expanded={showPicker}
+                className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-lg px-1 py-0.5 text-[14px] font-extrabold text-[#1E293B] hover:bg-[#F3F5F8] cursor-pointer"
+              >
+                <span>
+                  {ID_MONTHS[selectedMonth]} {selectedYear}
+                </span>
+                <ChevronDown
+                  className={`h-3.5 w-3.5 shrink-0 text-[#64748B] transition-transform ${
+                    showPicker ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPicker((v) => !v)}
+                className="shrink-0 whitespace-nowrap rounded-full bg-[#E6F4FD] px-2 py-0.5 text-[10.5px] font-bold text-[#0284C7] hover:bg-[#D5ECFA] cursor-pointer"
+              >
+                {isDefaultMonth ? 'Bulan Ini' : 'Ubah'}
+              </button>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                aria-label="Tanggal sebelumnya"
+                onClick={() => handleShiftDay(-1)}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F3F5F8] text-[#64748B] cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedDay(21)}
-                className="rounded-full bg-[#E6F4FD] px-2.5 py-1 text-[11.5px] font-bold text-[#0284C7] cursor-pointer"
+                onClick={() => {
+                  setSelectedYear(2026);
+                  setSelectedMonth(9);
+                  setSelectedDay(21);
+                }}
+                className="shrink-0 whitespace-nowrap rounded-full bg-[#E6F4FD] px-2.5 py-1 text-[11px] font-bold text-[#0284C7] cursor-pointer"
               >
                 Hari Ini
               </button>
               <button
                 type="button"
-                aria-label="Berikutnya"
-                onClick={() => setSelectedDay(24)}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F3F5F8] text-[#64748B] cursor-pointer"
+                aria-label="Tanggal berikutnya"
+                onClick={() => handleShiftDay(1)}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F3F5F8] text-[#64748B] cursor-pointer"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
+
+          {showPicker && (
+            <div className="mt-3 space-y-3 rounded-2xl border border-[#E6EEF5] bg-[#F8FBFE] p-3">
+              <div>
+                <p className="mb-1.5 text-[11.5px] font-extrabold text-[#64748B]">
+                  Pilih Bulan ({selectedYear})
+                </p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {ID_MONTHS.map((mName, mIdx) => {
+                    const active = mIdx === selectedMonth;
+                    return (
+                      <button
+                        key={mName}
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonth(mIdx);
+                          const maxD = getDaysInMonth(selectedYear, mIdx);
+                          if (selectedDay > maxD) setSelectedDay(maxD);
+                        }}
+                        className={`rounded-xl py-1.5 text-[11.5px] font-bold cursor-pointer ${
+                          active
+                            ? 'bg-[#0FA5E9] text-white'
+                            : 'bg-white text-[#1E293B] border border-[#E6EEF5]'
+                        }`}
+                      >
+                        {mName.slice(0, 3)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-[11.5px] font-extrabold text-[#64748B]">
+                  Pilih Tanggal ({ID_MONTHS[selectedMonth]} {selectedYear})
+                </p>
+                <div className="grid grid-cols-7 gap-1">
+                  {Array.from({length: daysInMonth}, (_, i) => i + 1).map(
+                    (dayNum) => {
+                      const active = dayNum === selectedDay;
+                      return (
+                        <button
+                          key={dayNum}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDay(dayNum);
+                            setShowPicker(false);
+                          }}
+                          className={`flex h-7 items-center justify-center rounded-lg text-[11.5px] font-bold cursor-pointer ${
+                            active
+                              ? 'bg-[#0FA5E9] text-white'
+                              : 'bg-white text-[#1E293B] hover:bg-[#E6F4FD]'
+                          }`}
+                        >
+                          {dayNum}
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mt-3.5 grid grid-cols-7 gap-1">
             {days.map((d) => {
@@ -725,12 +825,20 @@ export function ScheduleScreen({
             <div className="flex items-center gap-2 text-[#1E293B]">
               <Calendar className="h-4 w-4 text-[#0FA5E9]" />
               <span>
-                {selectedDay === 24
-                  ? 'Selasa, 24 Okt • Vaksinasi Tahunan'
-                  : `Sabtu, ${selectedDay} Okt • 1 Sesi Grooming`}
+                {formatSelectedDateSummary(
+                  selectedYear,
+                  selectedMonth,
+                  selectedDay,
+                )}{' '}
+                •{' '}
+                {selectedMonth === 9 && selectedDay === 24
+                  ? 'Vaksinasi Tahunan'
+                  : '1 Sesi Grooming'}
               </span>
             </div>
-            <span className="text-[11.5px] text-[#0284C7]">Hari Ini</span>
+            <span className="text-[11.5px] text-[#0284C7]">
+              {isDefaultMonth && selectedDay === 21 ? 'Hari Ini' : 'Dipilih'}
+            </span>
           </div>
         </div>
 

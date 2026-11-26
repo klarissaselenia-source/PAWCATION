@@ -7,21 +7,78 @@ import '../widgets/pawcation_badge.dart';
 import '../widgets/pawcation_button.dart';
 import '../widgets/pawcation_card.dart';
 
-class ScheduleScreen extends StatelessWidget {
+class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
+
+  @override
+  State<ScheduleScreen> createState() => _ScheduleScreenState();
+}
+
+class _ScheduleScreenState extends State<ScheduleScreen> {
+  bool _showMonthDatePicker = false;
+
+  static const _months = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+
+  static const _shortDays = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+  static const _fullDays = [
+    'Minggu',
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+  ];
 
   @override
   Widget build(BuildContext context) {
     final state = AppStateScope.of(context);
-    const days = [
-      (name: 'Kam', num: 19, dotColor: null),
-      (name: 'Jum', num: 20, dotColor: PawcationColors.success),
-      (name: 'Sab', num: 21, dotColor: PawcationColors.white),
-      (name: 'Min', num: 22, dotColor: null),
-      (name: 'Sen', num: 23, dotColor: null),
-      (name: 'Sel', num: 24, dotColor: PawcationColors.primary),
-      (name: 'Rab', num: 25, dotColor: null),
-    ];
+    final year = state.selectedCalendarYear;
+    final month = state.selectedCalendarMonth;
+    final selectedDay = state.selectedCalendarDay;
+    final daysInMonth = DateTime(year, month + 1, 0).day;
+    final isDefaultMonth = year == 2026 && month == 10;
+
+    int startDay = (selectedDay - 2).clamp(1, daysInMonth);
+    if (startDay + 6 > daysInMonth) {
+      startDay = (daysInMonth - 6).clamp(1, daysInMonth);
+    }
+    final weekDays = List.generate(
+      (daysInMonth - startDay + 1).clamp(1, 7),
+      (i) {
+        final d = startDay + i;
+        final dt = DateTime(year, month, d);
+        final dotColor = d == 20
+            ? PawcationColors.success
+            : d == 24
+                ? PawcationColors.primary
+                : d == 21
+                    ? PawcationColors.white
+                    : null;
+        return (
+          name: _shortDays[dt.weekday % 7],
+          num: d,
+          dotColor: dotColor,
+        );
+      },
+    );
+
+    final selectedDt = DateTime(year, month, selectedDay);
+    final summaryDate =
+        '${_fullDays[selectedDt.weekday % 7]}, $selectedDay ${_months[month - 1].substring(0, 3)} $year';
 
     return Scaffold(
       appBar: PawcationAppBar(
@@ -127,28 +184,77 @@ class ScheduleScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Text(
-                        'Oktober 2024',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: PawcationColors.textPrimary,
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                InkWell(
+                                  onTap: () => setState(
+                                    () => _showMonthDatePicker =
+                                        !_showMonthDatePicker,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 2,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          '${_months[month - 1]} $year',
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w800,
+                                            color: PawcationColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Icon(
+                                          _showMonthDatePicker
+                                              ? Icons.keyboard_arrow_up_rounded
+                                              : Icons
+                                                  .keyboard_arrow_down_rounded,
+                                          size: 18,
+                                          color: PawcationColors.textSecondary,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                InkWell(
+                                  onTap: () => setState(
+                                    () => _showMonthDatePicker =
+                                        !_showMonthDatePicker,
+                                  ),
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: PawcationPillBadge(
+                                    label: isDefaultMonth ? 'Bulan Ini' : 'Ubah',
+                                    backgroundColor:
+                                        PawcationColors.primarySoft,
+                                    textColor: PawcationColors.primaryDark,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      const PawcationPillBadge(
-                        label: 'Bulan Ini',
-                        backgroundColor: PawcationColors.primarySoft,
-                        textColor: PawcationColors.primaryDark,
-                      ),
-                      const Spacer(),
+                      const SizedBox(width: 6),
                       _CalendarArrow(
                         icon: Icons.chevron_left_rounded,
-                        onTap: () => state.selectCalendarDay(20),
+                        onTap: () => state.shiftCalendarDays(-1),
                       ),
                       const SizedBox(width: 6),
                       InkWell(
-                        onTap: () => state.selectCalendarDay(21),
+                        onTap: state.resetCalendarToday,
                         borderRadius: BorderRadius.circular(14),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -172,14 +278,135 @@ class ScheduleScreen extends StatelessWidget {
                       const SizedBox(width: 6),
                       _CalendarArrow(
                         icon: Icons.chevron_right_rounded,
-                        onTap: () => state.selectCalendarDay(24),
+                        onTap: () => state.shiftCalendarDays(1),
                       ),
                     ],
                   ),
+                  if (_showMonthDatePicker) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: PawcationColors.primaryTint,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: PawcationColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pilih Bulan ($year)',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: PawcationColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: 12,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              crossAxisSpacing: 6,
+                              mainAxisSpacing: 6,
+                              childAspectRatio: 2.3,
+                            ),
+                            itemBuilder: (_, idx) {
+                              final m = idx + 1;
+                              final active = m == month;
+                              return InkWell(
+                                onTap: () => state.selectCalendarMonth(m),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: active
+                                        ? PawcationColors.primary
+                                        : PawcationColors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: active
+                                          ? PawcationColors.primary
+                                          : PawcationColors.border,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    _months[idx].substring(0, 3),
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: active
+                                          ? PawcationColors.white
+                                          : PawcationColors.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Pilih Tanggal (${_months[month - 1]} $year)',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: PawcationColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: daysInMonth,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 7,
+                              crossAxisSpacing: 4,
+                              mainAxisSpacing: 4,
+                              childAspectRatio: 1.2,
+                            ),
+                            itemBuilder: (_, idx) {
+                              final d = idx + 1;
+                              final active = d == selectedDay;
+                              return InkWell(
+                                onTap: () {
+                                  state.selectCalendarDay(d);
+                                  setState(() => _showMonthDatePicker = false);
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: active
+                                        ? PawcationColors.primary
+                                        : PawcationColors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '$d',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: active
+                                          ? PawcationColors.white
+                                          : PawcationColors.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   Row(
-                    children: days.map((d) {
-                      final isSelected = state.selectedCalendarDay == d.num;
+                    children: weekDays.map((d) {
+                      final isSelected = selectedDay == d.num;
                       return Expanded(
                         child: GestureDetector(
                           onTap: () => state.selectCalendarDay(d.num),
@@ -255,9 +482,7 @@ class ScheduleScreen extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            state.selectedCalendarDay == 24
-                                ? 'Selasa, 24 Okt • Vaksinasi Tahunan'
-                                : 'Sabtu, ${state.selectedCalendarDay} Okt • 1 Sesi Grooming',
+                            '$summaryDate • ${month == 10 && selectedDay == 24 ? 'Vaksinasi Tahunan' : '1 Sesi Grooming'}',
                             style: const TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
@@ -265,9 +490,11 @@ class ScheduleScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const Text(
-                          'Hari Ini',
-                          style: TextStyle(
+                        Text(
+                          isDefaultMonth && selectedDay == 21
+                              ? 'Hari Ini'
+                              : 'Dipilih',
+                          style: const TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w700,
                             color: PawcationColors.primaryDark,

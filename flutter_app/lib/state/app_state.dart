@@ -14,6 +14,8 @@ class PawcationAppState extends ChangeNotifier {
   String ownerName = 'Sele Clarissa';
   String ownerEmail = 'sele.clarissa@pawparent.com';
   String selectedPetType = 'Anjing';
+  int selectedCalendarYear = 2026;
+  int selectedCalendarMonth = 10;
   int selectedCalendarDay = 21;
   int pawPoints = 320;
   int lastPaidAmount = 430000;
@@ -60,7 +62,36 @@ class PawcationAppState extends ChangeNotifier {
   }
 
   void selectCalendarDay(int day) {
-    selectedCalendarDay = day;
+    final maxDay = DateTime(selectedCalendarYear, selectedCalendarMonth + 1, 0).day;
+    selectedCalendarDay = day.clamp(1, maxDay);
+    notifyListeners();
+  }
+
+  void selectCalendarMonth(int month) {
+    selectedCalendarMonth = month.clamp(1, 12);
+    final maxDay = DateTime(selectedCalendarYear, selectedCalendarMonth + 1, 0).day;
+    if (selectedCalendarDay > maxDay) {
+      selectedCalendarDay = maxDay;
+    }
+    notifyListeners();
+  }
+
+  void shiftCalendarDays(int delta) {
+    final dt = DateTime(
+      selectedCalendarYear,
+      selectedCalendarMonth,
+      selectedCalendarDay + delta,
+    );
+    selectedCalendarYear = dt.year;
+    selectedCalendarMonth = dt.month;
+    selectedCalendarDay = dt.day;
+    notifyListeners();
+  }
+
+  void resetCalendarToday() {
+    selectedCalendarYear = 2026;
+    selectedCalendarMonth = 10;
+    selectedCalendarDay = 21;
     notifyListeners();
   }
 

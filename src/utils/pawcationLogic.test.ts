@@ -3,8 +3,15 @@ import assert from 'node:assert/strict';
 import {
   calculateCartTotals,
   calculatePawPointsEarned,
+  calculatePetTaxiQuote,
+  createCustomPinLocation,
   filterProducts,
   formatRupiah,
+  formatSelectedDateSummary,
+  getDaysInMonth,
+  getSevenDayWindow,
+  shiftDateByDays,
+  TAXI_LOCATIONS,
   updateCartEntry,
   type CartEntry,
   type ProductItem,
@@ -79,3 +86,45 @@ test('updateCartEntry adds, increments, and removes when quantity reaches zero',
   cart = updateCartEntry(cart, sampleProducts[0], -2);
   assert.equal(cart.length, 0);
 });
+
+test('2026 calendar helpers compute days, window, and month transitions accurately', () => {
+  assert.equal(getDaysInMonth(2026, 1), 28); // Feb 2026 non-leap year
+  assert.equal(getDaysInMonth(2026, 9), 31); // Okt 2026
+  const strip = getSevenDayWindow(2026, 9, 21);
+  assert.equal(strip.length, 7);
+  assert.equal(strip[0].num, 19);
+  assert.equal(strip[2].num, 21);
+  assert.equal(strip[2].name, 'Rab'); // Oct 21, 2026 is Wednesday (Rabu)
+  assert.equal(formatSelectedDateSummary(2026, 9, 21), 'Rabu, 21 Okt 2026');
+  const nextMonth = shiftDateByDays(2026, 9, 31, 1);
+  assert.deepEqual(nextMonth, {year: 2026, monthIndex: 10, day: 1});
+});
+
+test('calculatePetTaxiQuote computes distance, ETA, and fare breakdown from map pins', () => {
+  const pickup = TAXI_LOCATIONS[0]; // Rumah Sele
+  const dropoff = TAXI_LOCATIONS[1]; // Pawcation Salon & Spa (Malang)
+
+  const carQuote = calculatePetTaxiQuote(pickup, dropoff, 'PawCar Standard');
+  assert.equal(carQuote.distanceKm, 4.2);
+  assert.equal(carQuote.etaMinutes, 8);
+  assert.equal(carQuote.baseFare, 15000);
+  assert.equal(carQuote.distanceFee, 30000);
+  assert.equal(carQuote.totalFare, 45000);
+
+  const vanQuote = calculatePetTaxiQuote(pickup, dropoff, 'PawVan AC + Crate');
+  assert.equal(vanQuote.totalFare, 75000);
+
+  const customDest = createCustomPinLocation('dropoff', 80, 74, 'Taman Menteng');
+  const longerQuote = calculatePetTaxiQuote(
+    TAXI_LOCATIONS[5],
+    customDest,
+    'PawCar Standard',
+  );
+  assert.equal(longerQuote.distanceKm, 5.7);
+  assert.equal(longerQuote.totalFare, 55000);
+
+  const sameSpot = calculatePetTaxiQuote(pickup, pickup, 'PawCar Standard');
+  assert.equal(sameSpot.distanceKm, 0);
+  assert.equal(sameSpot.totalFare, 15000);
+});
+
